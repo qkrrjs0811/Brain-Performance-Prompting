@@ -5,5 +5,9 @@
 datasets/
 openai_key*
 api_key*
+logs/
 *.log
+*.xlsx
+*.jsonl
 config_ours.sh
+models/
