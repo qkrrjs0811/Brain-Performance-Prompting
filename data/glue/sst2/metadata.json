@@ -1,0 +1,9 @@
+{
+  "subset": "sst2",
+  "splits": {
+    "validataion": 200
+  },
+  "total_examples": 200,
+  "original_validataion_size": 872,
+  "sampled_size": 200
+}

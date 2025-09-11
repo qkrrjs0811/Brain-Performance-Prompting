@@ -8,5 +8,9 @@ def get_task(name, file=None):
     elif name == 'codenames_collaborative':
         from .codenames_collaborative import CodenamesCollaborativeTask
         return CodenamesCollaborativeTask(file)
+    elif name.startswith('glue_'):
+        from .glue import GLUETask
+        subset = name.replace('glue_', '')
+        return GLUETask(file, subset)
     else:
         raise NotImplementedError

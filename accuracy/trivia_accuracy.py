@@ -53,7 +53,6 @@ def process_all_files(root_dir, output_file_name):
         for file in files:
             if file.endswith('.jsonl'):
                 file_path = os.path.join(root, file)
-                file_path = r"\\?\{}".format(file_path.replace('/', '\\'))
                 
                 try:
                     model = file.split("_model-")[1].split("_")[0]
@@ -104,7 +103,7 @@ def process_all_files(root_dir, output_file_name):
 
 def get_root_dir_by_model(model_name):
     # Define the base directory for logs (modify this path according to your environment)
-    base_dir = 'your directory'
+    base_dir = 'logs/trivia_creative_writing'
     
     if model_name == 'gpt-4o':
         return {
@@ -126,11 +125,31 @@ def get_root_dir_by_model(model_name):
             'with_sys_mes': os.path.join(base_dir, 'o1-mini_w_sys_mes'),
             'wo_sys_mes': os.path.join(base_dir, 'o1-mini_wo_sys_mes')
         }
+    elif model_name == 'gpt-4.1':
+        return {
+            'with_sys_mes': os.path.join(base_dir, 'gpt-4.1_w_sys_mes'),
+            'wo_sys_mes': os.path.join(base_dir, 'gpt-4.1_wo_sys_mes')
+        }
+    elif model_name == 'gpt-4.1-mini':
+        return {
+            'with_sys_mes': os.path.join(base_dir, 'gpt-4.1-mini_w_sys_mes'),
+            'wo_sys_mes': os.path.join(base_dir, 'gpt-4.1-mini_wo_sys_mes')
+        }
+    elif model_name == 'llama3.1-8b-inst':
+        return {
+            'with_sys_mes': os.path.join(base_dir, 'meta-llama-Llama-3.1-8B-Instruct_w_sys_mes'),
+            'wo_sys_mes': os.path.join(base_dir, 'meta-llama-Llama-3.1-8B-Instruct_wo_sys_mes')
+        }
+    elif model_name == 'qwen2.5-7b-instruct':
+        return {
+            'with_sys_mes': os.path.join(base_dir, 'qwen2.5-7b-instruct_w_sys_mes'),
+            'wo_sys_mes': os.path.join(base_dir, 'qwen2.5-7b-instruct_wo_sys_mes')
+        }
     else:
         raise ValueError(f"Model {model_name} is not supported.")
 
-# Set the model you want to use (gpt-4o, gpt35-turbo, gpt-4o-mini, and o1-mini)
-selected_model = 'o1-mini'
+# Set the model you want to use (gpt-4.1, gpt-4.1-mini, gpt-4o, gpt35-turbo, gpt-4o-mini, o1-mini, llama3.1-8b-inst, qwen2.5-7b-instruct)
+selected_model = 'llama3.1-8b-inst'
 
 try:
     root_dirs = get_root_dir_by_model(selected_model)

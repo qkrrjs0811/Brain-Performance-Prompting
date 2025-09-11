@@ -1,10 +1,10 @@
 import os
 import json
 import argparse
-from models import OpenAIWrapper, Llama2Wrapper
+from models import OpenAIWrapper, OpenModelWrapper
 from tasks import get_task
 import time
-from configs import gpt_configs, llama_configs, default_gpt_config, default_llama_config
+from configs import gpt_configs, open_model_configs, default_gpt_config, default_open_model_config
 
 
 SLEEP_RATE = 10 # sleep between calls
@@ -61,6 +61,9 @@ def _post_process_raw_response(task, raw_output_batch, method, **kwargs):
 ### default task runners ###
 
 def _get_response_default(model, task, i, method, num_generation, prompt, test_output=True, **kwargs):
+    # 시작 시간 기록
+    start_time = time.time()
+    
     raw_output_batch, raw_response_batch = model.run(prompt=prompt, n=num_generation)
     if raw_output_batch == [] or raw_response_batch == []: # handle exception
         return {}    
@@ -71,13 +74,20 @@ def _get_response_default(model, task, i, method, num_generation, prompt, test_o
         test_output_infos = [task.test_output(i, output) for output in unwrapped_output_batch]
     else:
         test_output_infos = []
+    
+    # 종료 시간 기록 및 실행 시간 계산
+    end_time = time.time()
+    execution_time = end_time - start_time
+    
     # log output
     log_output = {
         "idx": i,
         "raw_response": raw_response_batch,
         "unwrapped_output": unwrapped_output_batch,
         "parsing_success_flag": if_success_batch,
-        "test_output_infos": test_output_infos
+        "test_output_infos": test_output_infos,
+        "usage_info": model.compute_gpt_usage(),
+        "execution_time": execution_time
     }
     return log_output
 
@@ -88,6 +98,9 @@ def _run_task_default(model, task, i, method, num_generation, sleep_rate=SLEEP_R
     return _get_response_default(model, task, i, method, num_generation, prompt, test_output=test_output)
 
 def _run_task_codenames(model, task, i, method, num_generation, sleep_rate=SLEEP_RATE, test_output=True):
+    # 전체 codenames 시작 시간
+    total_start_time = time.time()
+    
     # get spymaster hint word
     spymaster_prompt = task.get_input_prompt(i, method=method, role='spymaster')
     raw_spymaster_output, raw_response_spymaster = model.run(prompt=spymaster_prompt, n=1)
@@ -110,6 +123,11 @@ def _run_task_codenames(model, task, i, method, num_generation, sleep_rate=SLEEP
         test_output_infos = [task.test_output(i, output) for output in guesser_output_batch]
     else:
         test_output_infos = []
+    
+    # 전체 codenames 종료 시간 및 총 실행 시간 계산
+    total_end_time = time.time()
+    total_execution_time = total_end_time - total_start_time
+    
     # log output
     log_output = {
         "idx": i,
@@ -120,7 +138,9 @@ def _run_task_codenames(model, task, i, method, num_generation, sleep_rate=SLEEP
         "hint_word": hint_word,
         "parsing_success_flag_spymaster": if_success_batch_spymaster,
         "parsing_success_flag_guesser": if_success_batch_guesser,
-        "test_output_infos": test_output_infos
+        "test_output_infos": test_output_infos,
+        "total_execution_time": total_execution_time,
+        "total_usage_info": model.compute_gpt_usage()
     }
     return log_output
 
@@ -131,6 +151,10 @@ def _run_task_codenames(model, task, i, method, num_generation, sleep_rate=SLEEP
 def _run_self_refine_default(model, task, i, method, num_generation, sleep_rate=SLEEP_RATE, num_refine=1, **kwargs):
     print("\tidx:", i, "start self refine...")
     log_outputs = {}
+    
+    # 전체 self_refine 시작 시간
+    total_start_time = time.time()
+    
     ## get initial response
     init_prompt = task.get_input_prompt(i, method=method, phase="init", **kwargs)
     init_output = _get_response_default(model, task, i, method, num_generation=1, prompt=init_prompt, test_output=True, phase="init")
@@ -161,9 +185,20 @@ def _run_self_refine_default(model, task, i, method, num_generation, sleep_rate=
         # update context
         context_prompt = refine_prompt + refine_output["raw_response"][0]['choices'][0]['message']['content'] # Q + A0 + F + A1
 
+    # 전체 self_refine 종료 시간 및 총 실행 시간 계산
+    total_end_time = time.time()
+    total_execution_time = total_end_time - total_start_time
+    
+    # 총 실행 시간과 사용량 정보를 메타데이터로 추가
+    log_outputs["total_execution_time"] = total_execution_time
+    log_outputs["total_usage_info"] = model.compute_gpt_usage()
+
     return log_outputs
 
 def _run_self_refine_codenames(model, task, i, method, num_generation, sleep_rate=SLEEP_RATE, num_refine=1, test_output=True):
+    # 전체 self_refine_codenames 시작 시간
+    total_start_time = time.time()
+    
     # get spymaster hint word
     spy_master_log_outputs = _run_self_refine_default(model, task, i, method, num_generation, sleep_rate, num_refine, role='spymaster')
     if f"answer_{num_refine}" not in spy_master_log_outputs:
@@ -182,6 +217,11 @@ def _run_self_refine_codenames(model, task, i, method, num_generation, sleep_rat
         test_output_infos = [task.test_output(i, guesser_output)]
     else:
         test_output_infos = []
+    
+    # 전체 self_refine_codenames 종료 시간 및 총 실행 시간 계산
+    total_end_time = time.time()
+    total_execution_time = total_end_time - total_start_time
+    
     # log output
     log_output = {
         "idx": i,
@@ -190,7 +230,9 @@ def _run_self_refine_codenames(model, task, i, method, num_generation, sleep_rat
         "hint_word": hint_word,
         "parsing_success_flag_spymaster": spy_master_log_outputs[f"answer_{num_refine}"]["parsing_success_flag"],
         "parsing_success_flag_guesser": guesser_log_outputs[f"answer_{num_refine}"]["parsing_success_flag"],
-        "test_output_infos": test_output_infos
+        "test_output_infos": test_output_infos,
+        "total_execution_time": total_execution_time,
+        "total_usage_info": model.compute_gpt_usage()
     }
     return log_output
 ##############################
@@ -208,12 +250,15 @@ def _run_task(task_name, model, task, i, method, num_generation, sleep_rate=SLEE
             log_output = _run_self_refine_codenames(model, task, i, method, num_generation, sleep_rate, num_refine = kwargs['num_refine'])
         else:
             log_output = _run_task_codenames(model, task, i, method, num_generation, sleep_rate)
+    elif task_name.startswith('glue_'):
+        # GLUE 태스크는 standard 방식으로 처리
+        log_output = _run_task_default(model, task, i, method, num_generation, sleep_rate)
     else:
-        raise NotImplementedError(f"task {task_name} not implemented; please choose from ['trivia_creative_writing', 'logic_grid_puzzle', 'codenames_collaborative']")
+        raise NotImplementedError(f"task {task_name} not implemented; please choose from ['trivia_creative_writing', 'logic_grid_puzzle', 'codenames_collaborative', 'glue_*']")
 
     # log everything else that is related
-    if "llama_config" in args:
-        args["llama_config"]["torch_dtype"] = str(args["llama_config"]["torch_dtype"])
+    if "open_model_config" in args:
+        args["open_model_config"]["torch_dtype"] = str(args["open_model_config"]["torch_dtype"])
     log_output.update(args)
     log_output.update({"task_data":task.get_input(i)})
     return log_output
@@ -243,9 +288,13 @@ def run(args):
         log_file = setup_log_file(task_data_file, method, model_config, start_idx, end_idx, additional_output_note, system_message, output_dir)
         sleep_rate = SLEEP_RATE
 
-    elif model_type == 'llama2':
-        model_config = args['llama_config']
-        model = Llama2Wrapper(config=model_config)
+    elif model_type == 'open_model':
+        model_config = args['open_model_config']
+        # 로컬 모델 경로가 설정되어 있으면 사용
+        local_model_path = args.get('local_model_path', None)
+        if local_model_path:
+            model_config['local_model_path'] = local_model_path
+        model = OpenModelWrapper(config=model_config, local_model_path=local_model_path)
         # setup log file
         log_file = setup_log_file(task_data_file, method, model_config, start_idx, end_idx, additional_output_note, system_message, output_dir)
         sleep_rate = 0
@@ -300,6 +349,15 @@ def run(args):
                 correct = log_output['test_output_infos'][0]['correct']
                 accuracy = 100 if correct else 0
                 print(f"\tidx: {i} | done | Accuracy: {accuracy}% | Correct: {correct}")
+            
+            # GLUE tasks
+            elif task_name.startswith('glue_'):
+                correct = log_output['test_output_infos'][0]['correct']
+                true_label = log_output['test_output_infos'][0].get('true_label', 'N/A')
+                predicted_label = log_output['test_output_infos'][0].get('predicted_label', 'N/A')
+                accuracy = 100 if correct else 0
+                subset = task_name.replace('glue_', '').upper()
+                print(f"\tidx: {i} | done | Accuracy: {accuracy}% | Correct: {correct} | True: {true_label}, Predicted: {predicted_label} | Task: {subset}")
         
         print(f"\tidx: {i}, done | Progress: {progress:.2f}% | Elapsed time: {elapsed_time:.2f}s | Estimated total time: {estimated_total_time:.2f}s | Estimated remaining time: {remaining_time:.2f}s | Total usage so far: {model.compute_gpt_usage()}")
         # output log at each iteration
@@ -309,13 +367,13 @@ def run(args):
 
 
 def parse_args():
-    model_choices = list(gpt_configs.keys()) + list(llama_configs.keys())
+    model_choices = list(gpt_configs.keys()) + list(open_model_configs.keys())
     args = argparse.ArgumentParser()
-    args.add_argument('--model', type=str, choices=model_choices, required=True) # gpt-4o, gpt35-turbo, meta-llama/Llama-2-7b-chat-hf, meta-llama/Llama-2-13b-chat-hf
+    args.add_argument('--model', type=str, choices=model_choices, required=True) # gpt-4o, gpt35-turbo, meta-llama/Llama-3.1-8B-Instruct, Qwen/Qwen2.5-7B-Instruct
     args.add_argument('--output_dir', type=str, required=False, default="")
-    args.add_argument('--model_type', type=str, choices=['gpt','llama2'], default='gpt')
+    args.add_argument('--model_type', type=str, choices=['gpt','open_model'], default='gpt')
     args.add_argument('--method', type=str, choices=['standard','cot','spp', 'self_refine', 'bpp1', 'bpp2', 'bpp3', 'bpp', 'bpp_w_r_demo', 'bpp_w_k_demo', 'bpp_two_k_demo', 'bpp_two_r_demo'], required=True)
-    args.add_argument('--task', type=str, choices=['trivia_creative_writing', 'logic_grid_puzzle', 'codenames_collaborative'], required=True)
+    args.add_argument('--task', type=str, choices=['trivia_creative_writing', 'logic_grid_puzzle', 'codenames_collaborative', 'glue_cola', 'glue_sst2', 'glue_mrpc', 'glue_qqp', 'glue_rte', 'glue_qnli'], required=True)
     args.add_argument('--task_data_file', type=str, required=True)
     args.add_argument('--task_start_index', type=int, required=True)
     args.add_argument('--task_end_index', type=int, required=True)
@@ -325,6 +383,7 @@ def parse_args():
     args.add_argument('--top_p', type=float, default=1.0)
     args.add_argument('--system_message', type=str, default="") 
     # "You are an AI assistant that helps people find information",
+    args.add_argument('--local_model_path', type=str, default="") # 로컬 모델 경로
 
     args.add_argument('--num_refine', type=int, default=1) # Perform how many iterations of the self-refinement
     
@@ -348,13 +407,13 @@ if __name__ == '__main__':
         args['gpt_config']['temperature'] = args['temperature']
         args['gpt_config']['top_p'] = args['top_p']
     
-    elif model_type == 'llama2':
-        ### llama config ###
-        if model_name in llama_configs:
-            args['llama_config'] = llama_configs[model_name] # llama configs
+    elif model_type == 'open_model':
+        ### open model config ###
+        if model_name in open_model_configs:
+            args['open_model_config'] = open_model_configs[model_name] # open model configs
         else:
-            args['llama_config'] = default_llama_config
-            args['llama_config']['model'] = model_name
+            args['open_model_config'] = default_open_model_config
+            args['open_model_config']['model'] = model_name
 
     print("run args:", args)
     run(args)

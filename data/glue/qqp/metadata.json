@@ -1,0 +1,9 @@
+{
+  "subset": "qqp",
+  "splits": {
+    "validataion": 200
+  },
+  "total_examples": 200,
+  "original_validataion_size": 40430,
+  "sampled_size": 200
+}

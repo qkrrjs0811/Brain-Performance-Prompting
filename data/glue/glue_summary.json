@@ -1,0 +1,68 @@
+{
+  "total_subsets": 6,
+  "downloaded_subsets": [
+    "cola",
+    "sst2",
+    "mrpc",
+    "qqp",
+    "rte",
+    "qnli"
+  ],
+  "datasets_info": {
+    "cola": {
+      "subset": "cola",
+      "splits": {
+        "validataion": 200
+      },
+      "total_examples": 200,
+      "original_validataion_size": 1043,
+      "sampled_size": 200
+    },
+    "sst2": {
+      "subset": "sst2",
+      "splits": {
+        "validataion": 200
+      },
+      "total_examples": 200,
+      "original_validataion_size": 872,
+      "sampled_size": 200
+    },
+    "mrpc": {
+      "subset": "mrpc",
+      "splits": {
+        "validataion": 200
+      },
+      "total_examples": 200,
+      "original_validataion_size": 408,
+      "sampled_size": 200
+    },
+    "qqp": {
+      "subset": "qqp",
+      "splits": {
+        "validataion": 200
+      },
+      "total_examples": 200,
+      "original_validataion_size": 40430,
+      "sampled_size": 200
+    },
+    "rte": {
+      "subset": "rte",
+      "splits": {
+        "validataion": 200
+      },
+      "total_examples": 200,
+      "original_validataion_size": 277,
+      "sampled_size": 200
+    },
+    "qnli": {
+      "subset": "qnli",
+      "splits": {
+        "validataion": 200
+      },
+      "total_examples": 200,
+      "original_validataion_size": 5463,
+      "sampled_size": 200
+    }
+  },
+  "total_examples": 1200
+}

@@ -118,46 +118,91 @@ class OpenAIWrapper:
             cost = self.completion_tokens / 1000000 * 0.600 + self.prompt_tokens / 1000000 * 0.150
         elif model == 'o1-mini':
             cost = self.completion_tokens / 1000000 * 12.00 + self.prompt_tokens / 1000000 * 3.00
+        elif model == 'gpt-4.1':
+            cost = self.completion_tokens / 1000000 * 8.00 + self.prompt_tokens / 1000000 * 2.00
+        elif model == 'gpt-4.1-mini':
+            cost = self.completion_tokens / 1000000 * 1.60 + self.prompt_tokens / 1000000 * 0.40
         else:
             cost = 0 # TODO: add custom cost calculation for other engines
         return {"completion_tokens": self.completion_tokens, "prompt_tokens": self.prompt_tokens, "cost": cost}
 
 
-DEFAULT_LLAMA2_CONFIG = {
+DEFAULT_OPEN_MODEL_CONFIG = {
     "task": "text-generation",
-    "model": "meta-llama/Llama-2-7b-chat-hf",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "torch_dtype": torch.float16,
     "device_map": "auto",
-    "do_sample": False
+    "do_sample": False,
+    "local_model_path": "./models"  # 로컬 모델 경로 추가
 }
 
-class Llama2Wrapper:
-    def __init__(self, config = DEFAULT_LLAMA2_CONFIG):
+class OpenModelWrapper:
+    def __init__(self, config = DEFAULT_OPEN_MODEL_CONFIG, local_model_path=None):
         # GPU 사용 여부 확인
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"사용 중인 디바이스: {device}")
         
-        self.tokenizer = AutoTokenizer.from_pretrained(config["model"])
-        # self.pipeline = transformers.pipeline(**config)
-        self.pipeline = transformers.pipeline(
-            task=config["task"],
-            model=config["model"],
-            tokenizer=self.tokenizer,
-            device_map=device,  # GPU 할당
-            torch_dtype=config["torch_dtype"] if device == "cuda" else torch.float32,  # GPU에서는 float16, CPU에서는 float32 사용
-            do_sample=config["do_sample"]
+        # 로컬 모델 경로 설정
+        if local_model_path:
+            model_path = local_model_path
+        elif config.get("local_model_path") and os.path.exists(config["local_model_path"]):
+            model_path = config["local_model_path"]
+        else:
+            model_path = config["model"]
+        
+        print(f"모델 경로: {model_path}")
+        
+        # 토크나이저 로드
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_path,
+            cache_dir=config.get("local_model_path", None),
+            local_files_only=os.path.exists(config.get("local_model_path", ""))
         )
+        
+        # 패딩 토큰 설정
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        
+        # CUDA 사용 (에러 해결을 위한 올바른 설정)
+        print(f"CUDA 디바이스 사용: {device}")
+        
+        # pipeline 생성 시 rope_scaling 문제를 피하기 위한 설정
+        try:
+            self.pipeline = transformers.pipeline(
+                task=config["task"],
+                model=model_path,
+                tokenizer=self.tokenizer,
+                device_map=device,
+                dtype=config["torch_dtype"] if device == "cuda" else torch.float32,
+                do_sample=config["do_sample"],
+                trust_remote_code=True,  # Llama-3.1 모델을 위한 설정
+                model_kwargs={"attn_implementation": "eager"}  # rope_scaling 문제 해결을 위한 설정
+            )
+        except Exception as e:
+            print(f"Pipeline 생성 중 오류 발생: {e}")
+            print("기본 설정으로 재시도 중...")
+            # 기본 설정으로 재시도
+            self.pipeline = transformers.pipeline(
+                task=config["task"],
+                model=model_path,
+                tokenizer=self.tokenizer,
+                device_map=device,
+                dtype=config["torch_dtype"] if device == "cuda" else torch.float32,
+                do_sample=config["do_sample"]
+            )
         self.config = config
+        self.model_path = model_path
 
     def run(self, prompt, n=1, system_message=""):
-        #TODO: make this configurable
+        # TODO: make this configurable
         sequences = self.pipeline(
             prompt,
             do_sample=self.config["do_sample"],
             num_return_sequences=n,
             eos_token_id=self.tokenizer.eos_token_id,
-            max_length=3999,
+            max_new_tokens=1024  # 더 긴 토큰 제한
         )
+        
         # convert generation output into the same format as GPT raw response
         text_outputs = []
         raw_responses = []
@@ -193,9 +238,9 @@ class Llama2Wrapper:
 
 
 if __name__ == "__main__":
-    llama = Llama2Wrapper()
+    open_model = OpenModelWrapper()
     prompt = '''I liked "Breaking Bad" and "Band of Brothers". Do you have any recommendations of other shows I might like?\n'''
-    text_outputs, raw_responses = llama.run(prompt)
+    text_outputs, raw_responses = open_model.run(prompt)
     print(text_outputs)
     print('\n\n')
     print(raw_responses)

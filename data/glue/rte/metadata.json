@@ -1,0 +1,9 @@
+{
+  "subset": "rte",
+  "splits": {
+    "validataion": 200
+  },
+  "total_examples": 200,
+  "original_validataion_size": 277,
+  "sampled_size": 200
+}

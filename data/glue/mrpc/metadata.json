@@ -1,0 +1,9 @@
+{
+  "subset": "mrpc",
+  "splits": {
+    "validataion": 200
+  },
+  "total_examples": 200,
+  "original_validataion_size": 408,
+  "sampled_size": 200
+}
