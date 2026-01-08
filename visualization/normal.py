@@ -66,31 +66,24 @@ def create_visualization():
         print("데이터를 로드할 수 없습니다.")
         return None
     
-    # 색상 정의 (이미지 참고)
     colors = {
-        'standard': '#1f77b4',  # 밝은 파란색
-        'spp': '#ff7f0e',       # 주황색  
-        'bpp': '#d62728'        # 짙은 빨간색
+        'standard': '#1f77b4',
+        'spp': '#ff7f0e',
+        'bpp': '#d62728'
     }
     
     methods = ['standard', 'spp', 'bpp']
     method_labels = ['Standard', 'SPP', 'BPP']
     models = ['gpt-4.1', 'gpt-4.1-mini']
-    
-    # 태스크 순서 정의 (이미지 참고)
     task_order = ['Trivia.C.W (N=5)', 'Trivia.C.W (N=10)', 'Codenames.C', 'Logic.G.Puzzle']
     
-    # 서브플롯 생성 (1x2 레이아웃) - 높이 줄임
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
     
     for model_idx, model in enumerate(models):
         ax = axes[model_idx]
-        
-        # 각 태스크에 대한 막대 위치 계산
         x = np.arange(len(task_order))
-        width = 0.25  # 막대 너비
+        width = 0.25
         
-        # 각 방법별로 막대 그래프 그리기
         for i, method in enumerate(methods):
             values = []
             for task in task_order:
@@ -99,38 +92,39 @@ def create_visualization():
                 else:
                     values.append(0.0)
             
-            bars = ax.bar(x + i * width, values, width, 
-                         label=method_labels[i], 
-                         color=colors[method],
-                         alpha=0.8)
+            bars = ax.bar(x + (i - 1) * width, values, width, 
+                          label=method_labels[i], 
+                          color=colors[method],
+                          alpha=0.8)
             
-            # 막대 위에 값 표시
-            for j, (bar, value) in enumerate(zip(bars, values)):
+            for bar in bars:
                 height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                       f'{value:.1f}',
-                       ha='center', va='bottom', fontsize=10)
+                ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
+                        f'{height:.1f}',
+                        ha='center', va='bottom', fontsize=10)
         
-        # 그래프 설정
         ax.set_xlabel('Task', fontsize=14)
-        ax.set_ylabel('Score (%)', fontsize=14)
-        ax.set_title(f'{model.upper()}', fontsize=14, fontweight='bold', pad=10)  # 패딩 줄여서 아래로 이동
-        ax.set_xticks(x + width)
+        if model_idx == 0:  # Y축 레이블은 왼쪽에만 표시
+            ax.set_ylabel('Score (%)', fontsize=14)
+            
+        ax.set_title(f'{model.upper()}', fontsize=14, fontweight='bold', pad=20)
+        ax.set_xticks(x) # 막대 그룹 중앙에 틱 설정
         ax.set_xticklabels(task_order, rotation=0, ha='center')
-        ax.set_ylim(0, 100)
+        ax.set_ylim(0, 105) # 텍스트 공간 확보
         ax.grid(True, alpha=0.3, axis='y')
-        
-        # 배경색 설정
         ax.set_facecolor('#f5f5f5')
+
+    # ⭐ 수정 1: 전체 제목 위치를 y=0.98로 명확하게 지정
+    fig.suptitle('BPP Performance Comparison Across Several Models', fontsize=18, fontweight='bold', y=0.98)
     
-    # 전체 제목 설정
-    fig.suptitle('BPP Performance Comparison Across Several Models', fontsize=18, fontweight='bold', y=0.95)
-    
-    # 범례를 중앙 상단에 추가 (위로 올림)
+    # ⭐ 수정 2: 범례 위치를 y=0.88로 내려 서브플롯 타이틀과 겹치지 않게 함
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.92), ncol=3, fontsize=12)
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.92), ncol=3, fontsize=12, frameon=True)
     
-    plt.tight_layout()
+    # ⭐ 수정 3: tight_layout() 대신 subplots_adjust를 사용하여 레이아웃 직접 제어
+    # top: 서브플롯 상단 위치를 내려 제목/범례 공간 확보, wspace: 서브플롯 간 좌우 간격 조정
+    plt.subplots_adjust(top=0.78, wspace=0.15)
+    
     return fig
 
 def main():

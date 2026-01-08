@@ -174,19 +174,21 @@ class GLUETask(Task):
         
         elif method == "cot":
             # Chain of thought에서 최종 답변 추출
-            if "Answer:" in response:
-                return response.split("Answer:")[-1].strip(), True
-            elif "answer:" in response:
-                return response.split("answer:")[-1].strip(), True
+            # 대소문자 구분 없이 "answer" 패턴 찾기
+            pattern = r'answer\s*:?\s*(.*)'
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                return match.group(1).strip(), True
             else:
                 return response, False
         
         elif method in ["spp", "bpp"]:
             # SPP/BPP에서 최종 답변 추출
-            if "Final answer:" in response:
-                return response.split("Final answer:")[-1].strip(), True
-            elif "final answer:" in response:
-                return response.split("final answer:")[-1].strip(), True
+            # 대소문자 구분 없이 "final answer" 패턴 찾기
+            pattern = r'final\s+answer\s*:?\s*(.*)'
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                return match.group(1).strip(), True
             else:
                 return response, False
 

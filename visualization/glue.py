@@ -134,73 +134,72 @@ def create_matplotlib_visualization():
         print("데이터를 로드할 수 없습니다.")
         return None
     
-    # 색상 정의 (이미지 참고)
     colors = {
-        'standard': '#1f77b4',  # 밝은 파란색
-        'spp': '#ff7f0e',       # 주황색  
-        'bpp': '#d62728'        # 짙은 빨간색
+        'standard': '#1f77b4',
+        'spp': '#ff7f0e',
+        'bpp': '#d62728'
     }
     
     methods = ['standard', 'spp', 'bpp']
     method_labels = ['Standard', 'SPP', 'BPP']
     subsets = list(data.keys())
     
-    # 그래프 설정
-    fig, ax = plt.subplots(figsize=(12, 8))
+    # ⭐ 변경 사항 1: figsize을 살짝 조정하여 상단 여유 공간 확보
+    fig, ax = plt.subplots(figsize=(12, 8.5)) 
     
-    # 각 subset에 대한 막대 위치 계산
+    # ⭐ 변경 사항 2: ax.set_title 대신 fig.suptitle() 사용하여 전체 그림의 최상단에 제목 배치
+    fig.suptitle('GLUE Task Performance Comparison by Method', fontsize=18, fontweight='bold')
+
     x = np.arange(len(subsets))
-    width = 0.25  # 막대 너비
+    width = 0.25
     
-    # 각 방법별로 막대 그래프 그리기
     for i, method in enumerate(methods):
         values = [data[subset].get(method, 0) * 100 for subset in subsets]
-        bars = ax.bar(x + i * width, values, width, 
-                     label=method_labels[i], 
-                     color=colors[method],
-                     alpha=0.8)
+        bars = ax.bar(x + (i - 1) * width, values, width, 
+                      label=method_labels[i], 
+                      color=colors[method],
+                      alpha=0.8)
         
-        # 막대 위에 값 표시
-        for j, (bar, value) in enumerate(zip(bars, values)):
+        for bar in bars:
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                   f'{value:.1f}',
-                   ha='center', va='bottom', fontsize=10)
+            ax.text(bar.get_x() + bar.get_width() / 2., height + 0.5,
+                    f'{height:.1f}',
+                    ha='center', va='bottom', fontsize=10)
     
-    # 그래프 설정
     ax.set_xlabel('Task', fontsize=14)
     ax.set_ylabel('Score (%)', fontsize=14)
-    ax.set_title('GLUE Task Performance Comparison by Method', fontsize=16, fontweight='bold')
-    ax.set_xticks(x + width)
+    ax.set_xticks(x)
     ax.set_xticklabels(subsets, rotation=45, ha='right')
-    ax.set_ylim(0, 100)
-    ax.grid(True, alpha=0.3, axis='y')
+    ax.set_ylim(0, 105) 
+    ax.grid(True, alpha=0.3, axis='y', linestyle='--')
     
-    # 범례 설정
-    ax.legend(loc='upper right', bbox_to_anchor=(1, 1))
+    # ⭐ 변경 사항 3: 범례 위치를 타이틀 아래, 그래프 위로 재조정
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.0), # y 좌표를 1.0으로 변경
+              ncol=3, fancybox=True, shadow=True, fontsize=12)
     
-    # 배경색 설정
     ax.set_facecolor('#f5f5f5')
     
+    # ⭐ 변경 사항 4: tight_layout()에서 rect 인자 제거하여 자동 조정
     plt.tight_layout()
+
+    # suptitle과 legend 공간을 고려하여 레이아웃 추가 조정
+    plt.subplots_adjust(top=0.92)
+    
     return fig
 
 def main():
     """메인 함수"""
     print("GLUE 데이터 로딩 중...")
     
-    # matplotlib을 사용한 시각화
     fig = create_matplotlib_visualization()
     
     if fig:
         print("시각화 생성 완료!")
         
-        # PNG 파일로 저장
         output_path = 'glue_performance_comparison.png'
-        fig.savefig(output_path, dpi=300, bbox_inches='tight')
+        fig.savefig(output_path, dpi=300) # bbox_inches='tight' 제거, plt.tight_layout()으로 대체
         print(f"결과가 {output_path}에 저장되었습니다.")
         
-        # 화면에 표시
         plt.show()
     else:
         print("시각화 생성에 실패했습니다.")

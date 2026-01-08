@@ -7,7 +7,7 @@ START_IDX=0
 END_IDX=200
 
 # choose method
-METHODS=("standard" "spp" "bpp") # ["standard", "cot", "self_refine", "spp", "bpp", "macro_bpp", "meso_bpp", "micro_bpp", "bpp_w_r_demo", "bpp_w_k_demo", "bpp_two_k_demo", "bpp_two_r_demo"]
+METHODS=("spp" "bpp") # ["standard", "cot", "self_refine", "spp", "bpp", "macro_bpp", "meso_bpp", "micro_bpp", "bpp_w_r_demo", "bpp_w_k_demo", "bpp_two_k_demo", "bpp_two_r_demo"]
 
 # w/ or w/o system message (BPP works without a system message, but you can add one if you want)
 SYSTEM_MESSAGE="" # or "You are an AI assistant that helps people find information."
