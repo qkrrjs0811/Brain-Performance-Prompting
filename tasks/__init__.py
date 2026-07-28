@@ -8,9 +8,11 @@ def get_task(name, file=None):
     elif name == 'codenames_collaborative':
         from .codenames_collaborative import CodenamesCollaborativeTask
         return CodenamesCollaborativeTask(file)
-    elif name.startswith('glue_'):
-        from .glue import GLUETask
-        subset = name.replace('glue_', '')
-        return GLUETask(file, subset)
+    elif name == 'hf_numeric_math':
+        from .hf_numeric_math import HFNumericMathTask
+        return HFNumericMathTask(file)
+    elif name == 'hf_multiple_choice':
+        from .hf_multiple_choice import HFMultipleChoiceTask
+        return HFMultipleChoiceTask(file)
     else:
         raise NotImplementedError

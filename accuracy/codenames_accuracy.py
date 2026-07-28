@@ -1,6 +1,38 @@
+import argparse
 import json
 import os
+import sys
+
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 import pandas as pd
+
+from configs import claude_configs, open_model_configs
+from log_path_utils import (
+    insert_sampling_before_sys_mes_folder,
+    model_log_folder_stem,
+    open_sampling_params_for_accuracy,
+)
+
+SUPPORTED_MODELS = [
+    "gpt-4o",
+    "gpt35-turbo",
+    "gpt-4o-mini",
+    "o1-mini",
+    "gpt-5.2",
+    "gpt-5.4",
+    "gpt-5.4-nano",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "llama3.1-8b-inst",
+    "qwen2.5-7b-instruct",
+    "qwen2.5-14b-instruct",
+    "claude-haiku-4-5",
+    "claude-sonnet-4-6",
+    "claude-opus-4-7",
+]
 
 print()
 print('==================================')
@@ -55,6 +87,14 @@ def process_all_files(root_dir, output_file_name):
     for root, dirs, files in os.walk(root_dir):
         for file in files:
             if file.endswith('.jsonl'):
+                # Batch 실행 관련 입력/메타 파일은 request payload라 test_output_infos가 없어 정확도 계산이 0으로 찍힘.
+                if (
+                    "batch_input" in file
+                    or "batch_meta" in file
+                    or "batch_phase" in file
+                    or "batch_anthropic_requests" in file
+                ):
+                    continue
                 file_path = os.path.join(root, file)
                 
                 try:
@@ -128,6 +168,21 @@ def get_root_dir_by_model(model_name):
             'with_sys_mes': os.path.join(base_dir, 'o1-mini_w_sys_mes'),
             'wo_sys_mes': os.path.join(base_dir, 'o1-mini_wo_sys_mes')
         }
+    elif model_name == 'gpt-5.2':
+        return {
+            'with_sys_mes': os.path.join(base_dir, 'gpt-5.2_w_sys_mes'),
+            'wo_sys_mes': os.path.join(base_dir, 'gpt-5.2_wo_sys_mes')
+        }
+    elif model_name == 'gpt-5.4':
+        return {
+            'with_sys_mes': os.path.join(base_dir, 'gpt-5.4_w_sys_mes'),
+            'wo_sys_mes': os.path.join(base_dir, 'gpt-5.4_wo_sys_mes')
+        }
+    elif model_name == 'gpt-5.4-nano':
+        return {
+            'with_sys_mes': os.path.join(base_dir, 'gpt-5.4-nano_w_sys_mes'),
+            'wo_sys_mes': os.path.join(base_dir, 'gpt-5.4-nano_wo_sys_mes')
+        }
     elif model_name == 'gpt-4.1':
         return {
             'with_sys_mes': os.path.join(base_dir, 'gpt-4.1_w_sys_mes'),
@@ -145,25 +200,98 @@ def get_root_dir_by_model(model_name):
         }
     elif model_name == 'qwen2.5-7b-instruct':
         return {
-            'with_sys_mes': os.path.join(base_dir, 'qwen2.5-7b-instruct_w_sys_mes'),
-            'wo_sys_mes': os.path.join(base_dir, 'qwen2.5-7b-instruct_wo_sys_mes')
+            'with_sys_mes': os.path.join(base_dir, 'Qwen-Qwen2.5-7B-Instruct_w_sys_mes'),
+            'wo_sys_mes': os.path.join(base_dir, 'Qwen-Qwen2.5-7B-Instruct_wo_sys_mes')
+        }
+    elif model_name == 'qwen2.5-14b-instruct':
+        return {
+            'with_sys_mes': os.path.join(base_dir, 'Qwen-Qwen2.5-14B-Instruct_w_sys_mes'),
+            'wo_sys_mes': os.path.join(base_dir, 'Qwen-Qwen2.5-14B-Instruct_wo_sys_mes')
+        }
+    elif model_name in claude_configs:
+        stem = model_log_folder_stem(claude_configs[model_name])
+        return {
+            "with_sys_mes": os.path.join(base_dir, f"{stem}_w_sys_mes"),
+            "wo_sys_mes": os.path.join(base_dir, f"{stem}_wo_sys_mes"),
         }
     else:
         raise ValueError(f"Model {model_name} is not supported.")
 
 
-# Set the model you want to use (gpt-4.1, gpt-4.1-mini, gpt-4o, gpt35-turbo, gpt-4o-mini, o1-mini, llama3.1-8b-inst, qwen2.5-7b-instruct)
-selected_model = 'llama3.1-8b-inst' 
+def _apply_reasoning_suffix_if_needed(model_name, folder_name, reasoning_effort):
+    if model_name.startswith("gpt-5") and reasoning_effort:
+        suffix = "_w_sys_mes" if folder_name.endswith("_w_sys_mes") else "_wo_sys_mes"
+        base = folder_name[: -len(suffix)]
+        return f"{base}_re-{reasoning_effort}{suffix}"
+    return folder_name
 
 
-root_dirs = get_root_dir_by_model(selected_model)
+def _resolve_existing_dir(path_with_effort, fallback_path):
+    if os.path.exists(path_with_effort):
+        return path_with_effort
+    return fallback_path
 
-if os.path.exists(root_dirs['with_sys_mes']):
-    process_all_files(root_dirs['with_sys_mes'], f"accuracy_results_{selected_model}_with_sys_mes.xlsx")
-else:
-    print(f"with_sys_mes folder does not exist for {selected_model}")
 
-if os.path.exists(root_dirs['wo_sys_mes']):
-    process_all_files(root_dirs['wo_sys_mes'], f"accuracy_results_{selected_model}_wo_sys_mes.xlsx")
-else:
-    print(f"wo_sys_mes folder does not exist for {selected_model}")
+def parse_args():
+    p = argparse.ArgumentParser(description="Codenames collaborative 로그에서 정확도 집계")
+    p.add_argument(
+        "--model",
+        type=str,
+        choices=SUPPORTED_MODELS,
+        default="gpt-5.4",
+        help="get_root_dir_by_model()에 대응하는 모델 키",
+    )
+    p.add_argument(
+        "--reasoning_effort",
+        type=str,
+        default="none",
+        help="gpt-5 계열 폴더명 suffix용 (예: none, low, medium, high, xhigh)",
+    )
+    p.add_argument(
+        "--temperature",
+        type=float,
+        default=None,
+        help="open_model 전용: 로그 폴더 temp- (미지정 시 open_model_configs 기본값)",
+    )
+    p.add_argument(
+        "--top_p",
+        type=float,
+        default=None,
+        help="open_model 전용: 로그 폴더 topp- (미지정 시 open_model_configs 기본값)",
+    )
+    return p.parse_args()
+
+
+def main():
+    args = parse_args()
+    selected_model = args.model
+    reasoning_effort = args.reasoning_effort
+    t, tp = open_sampling_params_for_accuracy(
+        selected_model, args.temperature, args.top_p, open_model_configs
+    )
+    root_dirs = get_root_dir_by_model(selected_model)
+    with_dir_effort = _apply_reasoning_suffix_if_needed(
+        selected_model, root_dirs["with_sys_mes"], reasoning_effort
+    )
+    wo_dir_effort = _apply_reasoning_suffix_if_needed(
+        selected_model, root_dirs["wo_sys_mes"], reasoning_effort
+    )
+    if selected_model in open_model_configs:
+        with_dir_effort = insert_sampling_before_sys_mes_folder(with_dir_effort, t, tp)
+        wo_dir_effort = insert_sampling_before_sys_mes_folder(wo_dir_effort, t, tp)
+    with_dir = _resolve_existing_dir(with_dir_effort, root_dirs["with_sys_mes"])
+    wo_dir = _resolve_existing_dir(wo_dir_effort, root_dirs["wo_sys_mes"])
+
+    if os.path.exists(with_dir):
+        process_all_files(with_dir, f"accuracy_results_{selected_model}_with_sys_mes.xlsx")
+    else:
+        print(f"with_sys_mes folder does not exist for {selected_model}")
+
+    if os.path.exists(wo_dir):
+        process_all_files(wo_dir, f"accuracy_results_{selected_model}_wo_sys_mes.xlsx")
+    else:
+        print(f"wo_sys_mes folder does not exist for {selected_model}")
+
+
+if __name__ == "__main__":
+    main()
